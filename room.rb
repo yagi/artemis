@@ -19,7 +19,6 @@ class RedmineModule
   # room は @room でいいかもしらん
   # あるいはメソッドか
   def find(room, id)
-    id = (id < 5000) ? id+10000 : id
     room.say RedmineIssue.site + "/issues/#{id}"
     issue = RedmineIssue.find(id) 
     room.say issue.subject.to_s
@@ -36,18 +35,6 @@ end
 
 class Echo
   def echo(room, msg)
-
-    # ここでnickを使いたい
-    # msg.value msg.talker みたいに分ける? 
-    # msg.room でもいいわけだなぁ
-    # hooksが受け取るのではなく、actionにroom, msg, talker などの環境情報を渡すだけでいいのでは?
-    # hooksに渡されたroomの使いドコロってsayのレシーバとしてだけだよね　つまりアクションに発火しない限りは不要なのだ。
-    # hooksはマッチャだけでいい
-    # まっちゃも関数でいいんじゃないか? :matcher => proc{|room, talker, msg| msg =~ // }
-    # よさげ
-    # そうするとhooksは規制配列である必要はやっぱりなくって
-    # よろずeventを受け付けて必要なものにだけ応答するcontrollerなんだなぁ
-    
     room.say msg
   end
 
@@ -59,28 +46,24 @@ class Echo
   def timer_detail 
     "* * * * *"
   end
+
   def __hooks
     [
       :mention,  # 話しかけられた (話者、場所、時間をパラメータとして持つ)
-      :dm,       # 秘話で話しかけられた (話者、時間)
+      :dm,       # 秘話で話しかけられた (話者、時間) by, at 
       :timeline, # その場で誰かが発言した (話者、場所、時間）
       :file,     # ファイルを受け取った (from, room, time, file)
       :timer,    # cron的な意味で 
     ]
   end
 
-  def __notify(event)
-    event.type
-    event.room
-    event.creater
-    event.message
+  def __notify(room, msg)
+    case msg
+    when /.+/
+      self.echo room, msg
+    end
   end
 
-  def hooks(room)
-    [
-      {:matcher => /.*/, :action => proc{|m| self.echo room, m[0] }},
-    ]
-  end
 end
 
 
@@ -147,9 +130,9 @@ class Artemis
     # ここ一気に読み込みたいところだけど、パラメータをとるものがある...
     # botに応じたレシピになるところか
     modules = [
-      RedmineModule.new,
+      #RedmineModule.new,
       Echo.new,
-      Dic.new(kvs),
+      #Dic.new(kvs),
     ]
 
     # 監視対象イベントを予め登録する?
@@ -166,7 +149,7 @@ class Artemis
       # それを待ち受ける様々なマッチャとのマッチング
       modules.each do |mod|
         begin
-          r = mod.__notify(event)
+          r = mod.__notify(room, event)
         rescue
           puts [$!.inspect].concat($@).join("\n\t")
         end
